@@ -100,26 +100,50 @@ func encodeArgument(buf *bytes.Buffer, value any, name string) error {
 	}
 
 	var content []byte
-	switch {
-	case isFixedType(typeTag):
+	if isFixedType(typeTag) {
 		content, err = encodeFixedPrimitiveContent(value)
 		if err != nil {
 			return err
 		}
-	default:
-		return fmt.Errorf("type handling not implemented")
+	} else {
+		switch typeTag {
+		case TypeString:
+			content = []byte(value.(string))
+		case TypeStruct:
+			contentBuffer := bytes.NewBuffer(nil)
+			t := reflect.ValueOf(value).Type()
+			for i := 0; i < t.NumField(); i++ {
+				field := t.Field(i)
+				fieldValue := reflect.ValueOf(value).Field(i).Interface()
+
+				tmpBuf := bytes.NewBuffer(nil)
+
+				err := encodeArgument(tmpBuf, fieldValue, field.Name)
+				if err != nil {
+					return err
+				}
+
+				_, err = contentBuffer.Write(tmpBuf.Bytes())
+				if err != nil {
+					return err
+				}
+			}
+			content = contentBuffer.Bytes()
+		default:
+			return fmt.Errorf("Encoding for type %v not yet implemented", reflect.TypeOf(value))
+		}
 	}
 
 	contentSizeData := len(content)
 	contentSize := bytes.NewBuffer(nil)
-	switch { // shrinking the int to a fixed type
+	switch {
 	case contentSizeData >= math.MinInt8 && contentSizeData <= math.MaxInt8:
 		err = binary.Write(contentSize, binary.BigEndian, int8(contentSizeData))
 	case contentSizeData >= math.MinInt16 && contentSizeData <= math.MaxInt16:
 		err = binary.Write(contentSize, binary.BigEndian, int16(contentSizeData))
 	case contentSizeData >= math.MinInt32 && contentSizeData <= math.MaxInt32:
 		err = binary.Write(contentSize, binary.BigEndian, int32(contentSizeData))
-	case contentSizeData >= math.MinInt64 && contentSizeData <= math.MaxInt64:
+	default:
 		err = binary.Write(contentSize, binary.BigEndian, int64(contentSizeData))
 	}
 	contentSizeDescriptor := byte(contentSize.Len())
@@ -160,3 +184,38 @@ func encodeFixedPrimitiveContent(value any) ([]byte, error) {
 	binary.Write(resultWriter, binary.BigEndian, value)
 	return resultWriter.Bytes(), nil
 }
+
+// func formatXXD(data []byte) string {
+// 	var sb strings.Builder
+//
+// 	for i := 0; i < len(data); i += 16 {
+// 		sb.WriteString(fmt.Sprintf("%08x: ", i))
+// 		for j := 0; j < 16; j++ {
+// 			if i+j < len(data) {
+// 				sb.WriteString(fmt.Sprintf("%02x", data[i+j]))
+// 				if j%2 == 1 {
+// 					sb.WriteString(" ")
+// 				}
+// 			} else {
+// 				sb.WriteString("   ")
+// 				if j%2 == 1 {
+// 					sb.WriteString(" ")
+// 				}
+// 			}
+// 		}
+// 		sb.WriteString(" ")
+// 		for j := 0; j < 16; j++ {
+// 			if i+j < len(data) {
+// 				b := data[i+j]
+// 				if b >= 32 && b <= 126 {
+// 					sb.WriteString(fmt.Sprintf("%c", b))
+// 				} else {
+// 					sb.WriteString(".")
+// 				}
+// 			}
+// 		}
+// 		sb.WriteString("\n")
+// 	}
+//
+// 	return sb.String()
+// }
