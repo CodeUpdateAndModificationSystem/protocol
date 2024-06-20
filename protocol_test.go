@@ -3,6 +3,7 @@ package protocol
 import (
 	"bytes"
 	"fmt"
+	"os"
 	"strings"
 	"testing"
 )
@@ -48,6 +49,21 @@ func formatXXD(data []byte) string {
 	}
 
 	return sb.String()
+}
+
+func saveAsBin(data []byte, filename string) error {
+	file, err := os.Create(filename)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	_, err = file.Write(data)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func TestEncodeFixedArgument(t *testing.T) {
@@ -276,5 +292,156 @@ expected:
 got:
 %s
 		`, formatXXD(outerExpected.Bytes()), formatXXD(buf.Bytes()))
+	}
+}
+
+func TestEncodeSlice(t *testing.T) {
+	tests := []struct {
+		name         string
+		value        any
+		outerResult  []byte
+		innerResults [][]byte
+		expectErr    bool
+	}{
+		{"primitives", []byte{0xDE, 0x68, 0xAA}, []byte{
+			TypeSlice, 'p', 'r', 'i', 'm', 'i', 't', 'i', 'v', 'e', 's', 0xFF, 0x01, 0x1B,
+		}, [][]byte{
+			{
+				TypeUInt8, 0xFF, 0x01, 0x01, 0xDE,
+			},
+			{
+				TypeUInt8, 0xFF, 0x01, 0x01, 0x68,
+			},
+			{
+				TypeUInt8, 0xFF, 0x01, 0x01, 0xAA,
+			},
+		}, false},
+		{"strings", []string{"moin", "dikka"}, []byte{
+			TypeSlice, 's', 't', 'r', 'i', 'n', 'g', 's', 0xFF, 0x01, 0x19,
+		}, [][]byte{
+			{
+				TypeString, 0xFF, 0x01, 0x04, 'm', 'o', 'i', 'n',
+			},
+			{
+				TypeString, 0xFF, 0x01, 0x05, 'd', 'i', 'k', 'k', 'a',
+			},
+		}, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			buf := bytes.NewBuffer(nil)
+			err := encodeArgument(buf, tt.value, tt.name)
+
+			if (err != nil) != tt.expectErr {
+				t.Fatalf("expected error: %v, got: %v", tt.expectErr, err)
+			}
+
+			innerBuf := bytes.NewBuffer(nil)
+			for _, innerResult := range tt.innerResults {
+				tmpBuf := bytes.NewBuffer(innerResult)
+				err = writeChecksum(tmpBuf)
+				if err != nil {
+					t.Fatalf("error writing checksum: %v", err)
+				}
+				innerBuf.Write(tmpBuf.Bytes())
+			}
+
+			resultBuf := bytes.NewBuffer(tt.outerResult)
+			resultBuf.Write(innerBuf.Bytes())
+
+			err = writeChecksum(resultBuf)
+			if err != nil {
+				t.Fatalf("error writing checksum: %v", err)
+			}
+
+			if !bytes.Equal(buf.Bytes(), resultBuf.Bytes()) {
+				t.Fatalf(`
+expected:
+%s
+got:
+%s
+				`, formatXXD(resultBuf.Bytes()), formatXXD(buf.Bytes()))
+			}
+		})
+	}
+}
+
+func TestEncodeNestedSlice(t *testing.T) {
+	inner1 := []byte{0xDE, 0x68}
+	inner2 := []byte{0xAA}
+	value := [][]byte{
+		inner1,
+		inner2,
+	}
+
+	inner1ContentExpectedA := bytes.NewBuffer([]byte{
+		TypeUInt8, 0xFF, 0x01, 0x01, 0xDE,
+	})
+	err := writeChecksum(inner1ContentExpectedA)
+	if err != nil {
+		t.Fatalf("error writing checksum: %v", err)
+	}
+	inner1ContentExpectedB := bytes.NewBuffer([]byte{
+		TypeUInt8, 0xFF, 0x01, 0x01, 0x68,
+	})
+	err = writeChecksum(inner1ContentExpectedB)
+	if err != nil {
+		t.Fatalf("error writing checksum: %v", err)
+	}
+	inner1ContentExpected := bytes.NewBuffer(nil)
+	inner1ContentExpected.Write(inner1ContentExpectedA.Bytes())
+	inner1ContentExpected.Write(inner1ContentExpectedB.Bytes())
+	inner1Expected := bytes.NewBuffer([]byte{
+		TypeSlice, 0xFF, 0x01, byte(inner1ContentExpected.Len()),
+	})
+
+	inner1Expected.Write(inner1ContentExpected.Bytes())
+	err = writeChecksum(inner1Expected)
+	if err != nil {
+		t.Fatalf("error writing checksum: %v", err)
+	}
+
+	inner2ContentExpected := bytes.NewBuffer([]byte{
+		TypeUInt8, 0xFF, 0x01, 0x01, 0xAA,
+	})
+	err = writeChecksum(inner2ContentExpected)
+	if err != nil {
+		t.Fatalf("error writing checksum: %v", err)
+	}
+	inner2Expected := bytes.NewBuffer([]byte{
+		TypeSlice, 0xFF, 0x01, byte(inner2ContentExpected.Len()),
+	})
+
+	inner2Expected.Write(inner2ContentExpected.Bytes())
+	err = writeChecksum(inner2Expected)
+	if err != nil {
+		t.Fatalf("error writing checksum: %v", err)
+	}
+
+	totalInnerSize := inner1Expected.Len() + inner2Expected.Len()
+	outerExpected := bytes.NewBuffer([]byte{
+		TypeSlice, 'n', 'e', 's', 't', 'e', 'd', 0xFF, 0x01, byte(totalInnerSize),
+	})
+	outerExpected.Write(inner1Expected.Bytes())
+	outerExpected.Write(inner2Expected.Bytes())
+	err = writeChecksum(outerExpected)
+	if err != nil {
+		t.Fatalf("error writing checksum: %v", err)
+	}
+
+	buf := bytes.NewBuffer(nil)
+	err = encodeArgument(buf, value, "nested")
+	if err != nil {
+		t.Fatalf("error encoding argument: %v", err)
+	}
+
+	if !bytes.Equal(buf.Bytes(), outerExpected.Bytes()) {
+		t.Fatalf(`
+expected:
+%s
+got:
+%s
+`, formatXXD(outerExpected.Bytes()), formatXXD(buf.Bytes()))
 	}
 }

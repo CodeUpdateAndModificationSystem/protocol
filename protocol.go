@@ -64,6 +64,7 @@ var TypeToTag = map[reflect.Kind]byte{
 	reflect.String:     TypeString,
 	reflect.Struct:     TypeStruct,
 	reflect.Slice:      TypeSlice,
+	reflect.Array:      TypeSlice,
 	reflect.Map:        TypeMap,
 }
 
@@ -129,6 +130,23 @@ func encodeArgument(buf *bytes.Buffer, value any, name string) error {
 				}
 			}
 			content = contentBuffer.Bytes()
+		case TypeSlice:
+			contentBuffer := bytes.NewBuffer(nil)
+			for i := 0; i < reflect.ValueOf(value).Len(); i++ {
+				tmpBuf := bytes.NewBuffer(nil)
+
+				element := reflect.ValueOf(value).Index(i).Interface()
+				err := encodeArgument(tmpBuf, element, "")
+				if err != nil {
+					return err
+				}
+
+				_, err = contentBuffer.Write(tmpBuf.Bytes())
+				if err != nil {
+					return err
+				}
+			}
+			content = contentBuffer.Bytes()
 		default:
 			return fmt.Errorf("Encoding for type %v not yet implemented", reflect.TypeOf(value))
 		}
@@ -176,7 +194,10 @@ func encodeArgument(buf *bytes.Buffer, value any, name string) error {
 
 func writeChecksum(buffer *bytes.Buffer) error {
 	checksum := crc32.ChecksumIEEE(buffer.Bytes())
-	return binary.Write(buffer, binary.BigEndian, checksum)
+	checksumBuffer := make([]byte, 4)
+	binary.BigEndian.PutUint32(checksumBuffer, checksum)
+	buffer.Write(checksumBuffer)
+	return nil
 }
 
 func encodeFixedPrimitiveContent(value any) ([]byte, error) {
