@@ -617,6 +617,49 @@ got:
 	}
 }
 
+func TestDecodeSlice(t *testing.T) {
+	tests := []struct {
+		name      string
+		dataRaw   any
+		expectErr bool
+	}{
+		{"primitives", []byte{0xDE, 0x68, 0xAA}, false},
+		{"strings", []string{"moin", "dikka"}, false},
+		{"empty", []any{}, false},
+		{"mixed", []any{byte(0xDE), "moin"}, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			data := bytes.NewBuffer(nil)
+			err := encodeArgument(data, tt.dataRaw, tt.name)
+			if err != nil {
+				t.Fatalf("error encoding argument: %v", err)
+			}
+
+			buffer := data.Bytes()
+			name, value, typ, err := decodeArgument(buffer)
+
+			if (err != nil) != tt.expectErr {
+				t.Fatalf("expected error: %v, got: %v", tt.expectErr, err)
+			}
+
+			if name != tt.name {
+				t.Fatalf("expected name: %v, got: %v", tt.name, name)
+			}
+
+			if typ != TypeSlice {
+				t.Fatalf("expected type: %v, got: %v", TypeToString[TypeSlice], TypeToString[typ])
+			}
+
+			if !reflect.DeepEqual(value, tt.dataRaw) {
+				t.Fatalf("expected: %#v, got: %#v", tt.dataRaw, value)
+			}
+		})
+
+	}
+}
+
 func TestEncodeNestedSlice(t *testing.T) {
 	inner1 := []byte{0xDE, 0x68}
 	inner2 := []byte{0xAA}

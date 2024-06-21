@@ -300,6 +300,42 @@ func decodeArgument(data []byte) (name string, value any, typ byte, err error) {
 				}
 			}
 			value = instance.Interface()
+		case TypeSlice:
+			splitData, err := splitArgumentListData(content)
+			if err != nil {
+				return "", nil, 0, err
+			}
+			tmp := make([]any, 0)
+			typesInSlice := make([]reflect.Type, 0)
+			for _, fieldData := range splitData {
+				_, fieldValue, _, err := decodeArgument(fieldData)
+				if err != nil {
+					return "", nil, 0, err
+				}
+				typesInSlice = append(typesInSlice, reflect.TypeOf(fieldValue))
+				tmp = append(tmp, fieldValue)
+			}
+			if len(tmp) == 0 {
+				value = tmp
+				break
+			}
+			isAllSameType := true
+			sameType := typesInSlice[0]
+			for _, t := range typesInSlice {
+				if t != sameType {
+					isAllSameType = false
+					break
+				}
+			}
+			if isAllSameType {
+				slice := reflect.MakeSlice(reflect.SliceOf(sameType), len(tmp), len(tmp))
+				for i, v := range tmp {
+					slice.Index(i).Set(reflect.ValueOf(v))
+				}
+				value = slice.Interface()
+			} else {
+				value = tmp
+			}
 		default:
 			err = fmt.Errorf("Decoding for type '%s' not yet implemented", TypeToString[typ])
 		}
