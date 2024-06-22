@@ -4,32 +4,19 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
-	"hash/crc32"
-	"math"
 	"reflect"
 )
 
-func writeIdentifier(buf *bytes.Buffer, name string) error {
-	_, err := buf.Write([]byte(name))
-	if err != nil {
-		return err
-	}
-	err = buf.WriteByte(0xFF)
-	if err != nil {
-		return err
-	}
-	return nil
-}
+func encodeArgument(writeBuf *bytes.Buffer, value any, name string) error {
+	buf := bytes.NewBuffer(nil)
 
-func writeChecksum(buffer *bytes.Buffer) error {
-	checksum := crc32.ChecksumIEEE(buffer.Bytes())
-	checksumBuffer := make([]byte, 4)
-	binary.BigEndian.PutUint32(checksumBuffer, checksum)
-	buffer.Write(checksumBuffer)
-	return nil
-}
+	if reflect.TypeOf(value).Kind() == reflect.Int {
+		value, _ = shrinkInt(value.(int))
+	}
+	if reflect.TypeOf(value).Kind() == reflect.Uint {
+		value, _ = shrinkUint(value.(uint))
+	}
 
-func encodeArgument(buf *bytes.Buffer, value any, name string) error {
 	typeTag, ok := TypeToTag[reflect.TypeOf(value).Kind()]
 	if !ok {
 		return &UnsupportedTypeError{Kind: reflect.TypeOf(value).Kind()}
@@ -101,14 +88,15 @@ func encodeArgument(buf *bytes.Buffer, value any, name string) error {
 
 	contentSizeData := len(content)
 	contentSize := bytes.NewBuffer(nil)
-	switch {
-	case contentSizeData >= math.MinInt8 && contentSizeData <= math.MaxInt8:
+	_, shrunkenType := shrinkInt(contentSizeData)
+	switch shrunkenType {
+	case TypeInt8:
 		err = binary.Write(contentSize, binary.BigEndian, int8(contentSizeData))
-	case contentSizeData >= math.MinInt16 && contentSizeData <= math.MaxInt16:
+	case TypeInt16:
 		err = binary.Write(contentSize, binary.BigEndian, int16(contentSizeData))
-	case contentSizeData >= math.MinInt32 && contentSizeData <= math.MaxInt32:
+	case TypeInt32:
 		err = binary.Write(contentSize, binary.BigEndian, int32(contentSizeData))
-	default:
+	case TypeInt64:
 		err = binary.Write(contentSize, binary.BigEndian, int64(contentSizeData))
 	}
 	contentSizeDescriptor := byte(contentSize.Len())
@@ -132,6 +120,11 @@ func encodeArgument(buf *bytes.Buffer, value any, name string) error {
 	}
 
 	err = writeChecksum(buf)
+	if err != nil {
+		return err
+	}
+
+	_, err = writeBuf.Write(buf.Bytes())
 	if err != nil {
 		return err
 	}

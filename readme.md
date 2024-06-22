@@ -2,7 +2,7 @@
 
 ## Overview
 
-This protocol facilitates communication between a server and a client by encoding and decoding function calls and their arguments. It ensures data integrity through CRC32 checksums and supports various data types, including primitives, arrays, slices, structs, and maps. The encoding is binary, using big-endian format for consistency.
+This protocol facilitates communication between a server and a client by encoding and decoding function calls and their arguments. It ensures data integrity through CRC32 checksums and supports various data types, including primitives, arrays, slices, structs, and maps. There is also an option to use gzip compression on the argument content (gzip usage is usually only recommended for data above ~100 bytes). The encoding is binary, using big-endian format for consistency.
 
 ## Structure of Encoded Messages
 
@@ -10,7 +10,8 @@ This protocol facilitates communication between a server and a client by encodin
     - **Magic Number/Signature (8 bytes)**: Fixed sequence of bytes to identify the protocol. `69DE DE69 F09F 90BB`
     - **Version (1 byte)**: Major version number, indicating breaking changes.
     - **Subversion (1 byte)**: Minor version number, indicating non-breaking changes.
-    - **RESERVED (6 bytes)**: 6 bytes reserved for future use.
+    - **Compression Flag (1 byte)**: Indicates whether the message is compressed (0x01) or not (0x00).
+    - **RESERVED (5 bytes)**: 5 bytes reserved for future use.
 2. **Function Identifier**:
     - **Function Identifier (variable length, 0xFF-terminated)**: Null-terminated string representing the function name.
 3. **Arguments**: Each argument is encoded with the following structure:
@@ -46,3 +47,7 @@ This protocol facilitates communication between a server and a client by encodin
 ... 
 | Overall Checksum (4 bytes) |
 ```
+
+# Features not yet implemented
+
+- Everything to do with maps

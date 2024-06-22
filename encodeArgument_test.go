@@ -2,6 +2,7 @@ package protocol
 
 import (
 	"bytes"
+	"math"
 	"testing"
 )
 
@@ -52,6 +53,48 @@ func TestEncodeFixedArgument(t *testing.T) {
 expected: %s
 got:      %s
 				`, bytesToHexString(resultBuf.Bytes()), bytesToHexString(buf.Bytes()))
+			}
+		})
+	}
+}
+
+func TestEncodingShrinkingArgument(t *testing.T) {
+	tests := []struct {
+		name   string
+		value  any
+		result []byte
+	}{
+		{"int8", math.MaxInt8, []byte{TypeInt8, 'i', 'n', 't', '8', 0xFF, 0x01, 0x01, 0x7F}},
+		{"int16", math.MaxInt16, []byte{TypeInt16, 'i', 'n', 't', '1', '6', 0xFF, 0x01, 0x02, 0x7F, 0xFF}},
+		{"int32", math.MaxInt32, []byte{TypeInt32, 'i', 'n', 't', '3', '2', 0xFF, 0x01, 0x04, 0x7F, 0xFF, 0xFF, 0xFF}},
+		{"int64", math.MaxInt64, []byte{TypeInt64, 'i', 'n', 't', '6', '4', 0xFF, 0x01, 0x08, 0x7F, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}},
+		{"uint8", uint(math.MaxUint8), []byte{TypeUInt8, 'u', 'i', 'n', 't', '8', 0xFF, 0x01, 0x01, 0xFF}},
+		{"uint16", uint(math.MaxUint16), []byte{TypeUInt16, 'u', 'i', 'n', 't', '1', '6', 0xFF, 0x01, 0x02, 0xFF, 0xFF}},
+		{"uint32", uint(math.MaxUint32), []byte{TypeUInt32, 'u', 'i', 'n', 't', '3', '2', 0xFF, 0x01, 0x04, 0xFF, 0xFF, 0xFF, 0xFF}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			buf := bytes.NewBuffer(nil)
+			err := encodeArgument(buf, tt.value, tt.name)
+
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			resultBuf := bytes.NewBuffer(tt.result)
+			err = writeChecksum(resultBuf)
+			if err != nil {
+				t.Fatalf("error writing checksum: %v", err)
+			}
+
+			if !bytes.Equal(buf.Bytes(), resultBuf.Bytes()) {
+				t.Fatalf(`
+expected:
+%s
+got:
+%s
+				`, formatXXD(resultBuf.Bytes()), formatXXD(buf.Bytes()))
 			}
 		})
 	}

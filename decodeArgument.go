@@ -13,7 +13,7 @@ func decodeArgument(data []byte) (name string, value any, typ byte, err error) {
 	checksum := data[len(data)-4:]
 	ok := verifyChecksum(withoutChecksum, checksum)
 	if !ok {
-		err = fmt.Errorf("Checksum verification failed")
+		err = fmt.Errorf("Arguments checksum verification failed")
 		return
 	}
 
