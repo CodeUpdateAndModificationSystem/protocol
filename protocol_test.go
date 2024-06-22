@@ -414,15 +414,9 @@ func TestSplitArgumentListData(t *testing.T) {
 	data.Write(first.Bytes())
 	data.Write(second.Bytes())
 
-	fmt.Printf("data:\n%s\n\n", formatXXD(data.Bytes()))
-
 	splitData, err := splitArgumentListData(data.Bytes())
 	if err != nil {
 		t.Fatalf("error splitting data: %v", err)
-	}
-
-	for i, d := range splitData {
-		fmt.Printf("splitData[%d]:\n%s\n", i, formatXXD(d))
 	}
 
 	if len(splitData) != 2 {
