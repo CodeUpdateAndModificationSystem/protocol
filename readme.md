@@ -6,9 +6,11 @@ This protocol facilitates communication between a server and a client by encodin
 
 ## Structure of Encoded Messages
 
-1. **Versioning**:
+1. **Header**:
+    - **Magic Number/Signature (8 bytes)**: Fixed sequence of bytes to identify the protocol. `69DE DE69 F09F 90BB`
     - **Version (1 byte)**: Major version number, indicating breaking changes.
     - **Subversion (1 byte)**: Minor version number, indicating non-breaking changes.
+    - **RESERVED (6 bytes)**: 6 bytes reserved for future use.
 2. **Function Identifier**:
     - **Function Identifier (variable length, 0xFF-terminated)**: Null-terminated string representing the function name.
 3. **Arguments**: Each argument is encoded with the following structure:

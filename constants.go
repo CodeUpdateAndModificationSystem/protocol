@@ -21,6 +21,12 @@ func (e *EncodingError) Error() string {
 	return fmt.Sprintf("error while encoding: %v", e.err)
 }
 
+var signature = []byte{0x69, 0xDE, 0xDE, 0x69, 0xF0, 0x9F, 0x90, 0xBB}
+
+func Signature() []byte {
+	return signature
+}
+
 const (
 	TypeBool byte = iota + 1
 	TypeUInt8
