@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"reflect"
+	"sort"
 )
 
 func encodeArgument(writeBuf *bytes.Buffer, value any, name string) error {
@@ -17,7 +18,7 @@ func encodeArgument(writeBuf *bytes.Buffer, value any, name string) error {
 		value, _ = shrinkUint(value.(uint))
 	}
 
-	typeTag, ok := TypeToTag[reflect.TypeOf(value).Kind()]
+	typeTag, ok := AnyToTypeTag(value)
 	if !ok {
 		return &UnsupportedTypeError{Kind: reflect.TypeOf(value).Kind()}
 	}
@@ -71,6 +72,65 @@ func encodeArgument(writeBuf *bytes.Buffer, value any, name string) error {
 
 				element := reflect.ValueOf(value).Index(i).Interface()
 				err := encodeArgument(tmpBuf, element, "")
+				if err != nil {
+					return err
+				}
+
+				_, err = contentBuffer.Write(tmpBuf.Bytes())
+				if err != nil {
+					return err
+				}
+			}
+			content = contentBuffer.Bytes()
+		case TypeMapStringKey:
+			contentBuffer := bytes.NewBuffer(nil)
+			m := map[string]any(value.(map[string]any))
+			keys := make([]string, 0, len(m))
+			for key := range m {
+				keys = append(keys, key)
+			}
+			sort.Strings(keys)
+			for _, key := range keys {
+				tmpBuf := bytes.NewBuffer(nil)
+
+				err := encodeArgument(tmpBuf, m[key], key)
+				if err != nil {
+					return err
+				}
+
+				_, err = contentBuffer.Write(tmpBuf.Bytes())
+				if err != nil {
+					return err
+				}
+			}
+			content = contentBuffer.Bytes()
+		case TypeMap:
+			contentBuffer := bytes.NewBuffer(nil)
+			m := map[any]any(value.(map[any]any))
+			keys := make([]any, 0, len(m))
+			for key := range m {
+				keys = append(keys, key)
+			}
+			sort.Slice(keys, func(i, j int) bool {
+				return fmt.Sprintf("%v", keys[i]) < fmt.Sprintf("%v", keys[j])
+			})
+
+			for _, key := range keys {
+				tmpBuf := bytes.NewBuffer(nil)
+
+				err := encodeArgument(tmpBuf, key, "")
+				if err != nil {
+					return err
+				}
+
+				_, err = contentBuffer.Write(tmpBuf.Bytes())
+				if err != nil {
+					return err
+				}
+
+				tmpBuf = bytes.NewBuffer(nil)
+
+				err = encodeArgument(tmpBuf, m[key], "")
 				if err != nil {
 					return err
 				}

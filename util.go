@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"math"
 	"os"
-	"strings"
 )
 
 func bytesToHexString(b []byte) string {
@@ -17,38 +16,115 @@ func bytesToHexString(b []byte) string {
 }
 
 func formatXXD(data []byte) string {
-	var sb strings.Builder
-
+	var result string
 	for i := 0; i < len(data); i += 16 {
-		sb.WriteString(fmt.Sprintf("%08x: ", i))
+		result += fmt.Sprintf("%08x: ", i)
 		for j := 0; j < 16; j++ {
 			if i+j < len(data) {
-				sb.WriteString(fmt.Sprintf("%02x", data[i+j]))
-				if j%2 == 1 {
-					sb.WriteString(" ")
-				}
+				result += formatHex(data[i+j])
 			} else {
-				sb.WriteString("   ")
-				if j%2 == 1 {
-					sb.WriteString(" ")
-				}
+				result += "   "
 			}
 		}
-		sb.WriteString(" ")
+		result += " "
 		for j := 0; j < 16; j++ {
 			if i+j < len(data) {
-				b := data[i+j]
-				if b >= 32 && b <= 126 {
-					sb.WriteString(fmt.Sprintf("%c", b))
-				} else {
-					sb.WriteString(".")
-				}
+				result += formatAsciiColored(data[i+j], false)
+			} else {
+				result += " "
 			}
 		}
-		sb.WriteString("\n")
+		result += "\n"
+	}
+	return result
+}
+
+func compareBytes(expected, got []byte) string {
+	var buffer bytes.Buffer
+	chunkSize := 16
+
+	// Compare data1
+	for i := 0; i < len(expected); i += chunkSize {
+		end := i + chunkSize
+		if end > len(expected) {
+			end = len(expected)
+		}
+
+		chunk := expected[i:end]
+		hex := ""
+		ascii := ""
+
+		for j := 0; j < chunkSize; j++ {
+			if j < len(chunk) {
+				hex += formatHex(chunk[j])
+				ascii += formatAsciiColored(chunk[j], false)
+			} else {
+				hex += "   "
+				ascii += " "
+			}
+		}
+
+		buffer.WriteString(fmt.Sprintf("%08x: %s %s\n", i, hex, ascii))
 	}
 
-	return sb.String()
+	buffer.WriteString("\n")
+
+	// Compare data2
+	for i := 0; i < len(got); i += chunkSize {
+		end := i + chunkSize
+		if end > len(got) {
+			end = len(got)
+		}
+
+		chunk := got[i:end]
+		hex := ""
+		ascii := ""
+
+		for j := 0; j < chunkSize; j++ {
+			if j < len(chunk) {
+				if i+j >= len(expected) || expected[i+j] != chunk[j] {
+					hex += fmt.Sprintf("\033[1;31m%02x\033[0m ", chunk[j])
+					ascii += formatAsciiColored(chunk[j], true)
+				} else {
+					hex += formatHex(chunk[j])
+					ascii += formatAsciiColored(chunk[j], false)
+				}
+			} else {
+				hex += "   "
+				ascii += " "
+			}
+		}
+
+		buffer.WriteString(fmt.Sprintf("%08x: %s %s\n", i, hex, ascii))
+	}
+
+	return buffer.String()
+}
+
+func formatHex(b byte) string {
+	switch b {
+	case 0xff, 0x00:
+		return fmt.Sprintf("\033[1;37m%02x\033[0m ", b) // White
+	default:
+		return fmt.Sprintf("\033[1;90m%02x\033[0m ", b) // Gray
+	}
+}
+
+func formatAscii(b byte) string {
+	if 32 <= b && b < 127 {
+		return fmt.Sprintf("%c", b)
+	}
+	return "."
+}
+
+func formatAsciiColored(b byte, isDifferent bool) string {
+	color := "\033[1;90m" // Gray
+	if b == 0xff || b == 0x00 {
+		color = "\033[1;37m" // White
+	} else if isDifferent {
+		color = "\033[1;31m" // Red
+	}
+	return fmt.Sprintf("%s%s\033[0m", color, formatAscii(b))
 }
 
 func saveAsBin(data []byte, filename string) error {

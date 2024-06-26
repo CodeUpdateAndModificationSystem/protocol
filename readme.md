@@ -47,7 +47,3 @@ This protocol facilitates communication between a server and a client by encodin
 ... 
 | Overall Checksum (4 bytes) |
 ```
-
-# Features not yet implemented
-
-- Everything to do with maps

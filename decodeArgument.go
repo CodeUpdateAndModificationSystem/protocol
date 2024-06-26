@@ -119,6 +119,43 @@ func decodeArgument(data []byte) (name string, value any, typ byte, err error) {
 			} else {
 				value = tmp
 			}
+		case TypeMapStringKey:
+			splitData, err := splitArgumentListData(content)
+			if err != nil {
+				return "", nil, 0, err
+			}
+			tmp := make(map[string]any)
+			for _, fieldData := range splitData {
+				name, fieldValue, _, err := decodeArgument(fieldData)
+				if err != nil {
+					return "", nil, 0, err
+				}
+				tmp[name] = fieldValue
+			}
+			value = tmp
+		case TypeMap:
+			splitData, err := splitArgumentListData(content)
+			if err != nil {
+				return "", nil, 0, err
+			}
+			tmp := make(map[any]any)
+			for i := 0; i < len(splitData); i += 2 {
+				keyFieldData := splitData[i]
+				valueFieldData := splitData[i+1]
+
+				_, keyFieldValue, _, err := decodeArgument(keyFieldData)
+				if err != nil {
+					return "", nil, 0, err
+				}
+
+				_, valueFieldValue, _, err := decodeArgument(valueFieldData)
+				if err != nil {
+					return "", nil, 0, err
+				}
+
+				tmp[keyFieldValue] = valueFieldValue
+			}
+			value = tmp
 		default:
 			err = fmt.Errorf("Decoding for type '%s' not yet implemented", TypeToString[typ])
 		}

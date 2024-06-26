@@ -64,9 +64,10 @@ const (
 	TypeStruct
 	TypeSlice
 	TypeMap
+	TypeMapStringKey
 )
 
-var TypeToTag = map[reflect.Kind]byte{
+var simpleTypeTagMappings = map[reflect.Kind]byte{
 	reflect.Bool:       TypeBool,
 	reflect.Uint8:      TypeUInt8,
 	reflect.Uint16:     TypeUInt16,
@@ -86,24 +87,42 @@ var TypeToTag = map[reflect.Kind]byte{
 	reflect.Array:      TypeSlice,
 	reflect.Map:        TypeMap,
 }
+
+func AnyToTypeTag(value any) (byte, bool) {
+	kind := reflect.TypeOf(value).Kind()
+	simple, ok := simpleTypeTagMappings[kind]
+	if !ok {
+		return 0x00, false
+	}
+
+	if simple == TypeMap {
+		mapValue := reflect.ValueOf(value)
+		if mapValue.Type().Key().Kind() == reflect.String {
+			return TypeMapStringKey, true
+		}
+	}
+	return simple, true
+}
+
 var TypeToString = map[byte]string{
-	TypeBool:       "bool",
-	TypeUInt8:      "uint8",
-	TypeUInt16:     "uint16",
-	TypeUInt32:     "uint32",
-	TypeUInt64:     "uint64",
-	TypeInt8:       "int8",
-	TypeInt16:      "int16",
-	TypeInt32:      "int32",
-	TypeInt64:      "int64",
-	TypeFloat32:    "float32",
-	TypeFloat64:    "float64",
-	TypeComplex64:  "complex64",
-	TypeComplex128: "complex128",
-	TypeString:     "string",
-	TypeStruct:     "struct",
-	TypeSlice:      "slice",
-	TypeMap:        "map",
+	TypeBool:         "bool",
+	TypeUInt8:        "uint8",
+	TypeUInt16:       "uint16",
+	TypeUInt32:       "uint32",
+	TypeUInt64:       "uint64",
+	TypeInt8:         "int8",
+	TypeInt16:        "int16",
+	TypeInt32:        "int32",
+	TypeInt64:        "int64",
+	TypeFloat32:      "float32",
+	TypeFloat64:      "float64",
+	TypeComplex64:    "complex64",
+	TypeComplex128:   "complex128",
+	TypeString:       "string",
+	TypeStruct:       "struct",
+	TypeSlice:        "slice",
+	TypeMap:          "map",
+	TypeMapStringKey: "map[string]",
 }
 
 func isFixedType(typeTag byte) bool {

@@ -426,3 +426,285 @@ got:
 `, formatXXD(outerExpected.Bytes()), formatXXD(buf.Bytes()))
 	}
 }
+
+func TestEncodeMapStringKeyArgument(t *testing.T) {
+	tests := []struct {
+		name         string
+		value        map[string]any
+		outerResult  []byte
+		innerResults [][]byte
+	}{
+		{"single", map[string]any{"moin": byte(0xDE)}, []byte{
+			TypeMapStringKey, 's', 'i', 'n', 'g', 'l', 'e', 0xFF, 0x01,
+		}, [][]byte{
+			{
+				TypeUInt8, 'm', 'o', 'i', 'n', 0xFF, 0x01, 0x01, 0xDE,
+			},
+		}},
+		{"multiple", map[string]any{"moin": byte(0xDE), "dikka": byte(0x68)}, []byte{
+			TypeMapStringKey, 'm', 'u', 'l', 't', 'i', 'p', 'l', 'e', 0xFF, 0x01,
+		}, [][]byte{
+			{
+				TypeUInt8, 'd', 'i', 'k', 'k', 'a', 0xFF, 0x01, 0x01, 0x68,
+			},
+			{
+				TypeUInt8, 'm', 'o', 'i', 'n', 0xFF, 0x01, 0x01, 0xDE,
+			},
+		}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			buf := bytes.NewBuffer(nil)
+			err := encodeArgument(buf, tt.value, tt.name)
+
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			innerBuf := bytes.NewBuffer(nil)
+			for _, innerResult := range tt.innerResults {
+				tmpBuf := bytes.NewBuffer(innerResult)
+				err = writeChecksum(tmpBuf)
+				if err != nil {
+					t.Fatalf("error writing checksum: %v", err)
+				}
+				innerBuf.Write(tmpBuf.Bytes())
+			}
+			innerBufSize := innerBuf.Len()
+
+			resultBuf := bytes.NewBuffer(tt.outerResult)
+			resultBuf.WriteByte(byte(innerBufSize))
+			resultBuf.Write(innerBuf.Bytes())
+
+			err = writeChecksum(resultBuf)
+			if err != nil {
+				t.Fatalf("error writing checksum: %v", err)
+			}
+
+			if !bytes.Equal(buf.Bytes(), resultBuf.Bytes()) {
+				t.Fatalf(`
+expected:
+%s
+got:
+%s
+				`, formatXXD(resultBuf.Bytes()), formatXXD(buf.Bytes()))
+
+			}
+		})
+	}
+}
+
+func TestEncodeNestedMapStringKeyArgument(t *testing.T) {
+	innerMap1 := map[string]any{
+		"key1": byte(0xDE),
+	}
+	innerMap2 := map[string]any{
+		"key2": byte(0x68),
+	}
+	value := map[string]any{
+		"outerKey1": innerMap1,
+		"outerKey2": innerMap2,
+	}
+
+	innerMap1ContentExpected := bytes.NewBuffer([]byte{
+		TypeUInt8, 'k', 'e', 'y', '1', 0xFF, 0x01, 0x01, 0xDE,
+	})
+	err := writeChecksum(innerMap1ContentExpected)
+	if err != nil {
+		t.Fatalf("error writing checksum: %v", err)
+	}
+
+	innerMap2ContentExpected := bytes.NewBuffer([]byte{
+		TypeUInt8, 'k', 'e', 'y', '2', 0xFF, 0x01, 0x01, 0x68,
+	})
+	err = writeChecksum(innerMap2ContentExpected)
+	if err != nil {
+		t.Fatalf("error writing checksum: %v", err)
+	}
+
+	innerMap1Expected := bytes.NewBuffer([]byte{
+		TypeMapStringKey, 'o', 'u', 't', 'e', 'r', 'K', 'e', 'y', '1', 0xFF, 0x01, byte(innerMap1ContentExpected.Len()),
+	})
+	innerMap1Expected.Write(innerMap1ContentExpected.Bytes())
+	err = writeChecksum(innerMap1Expected)
+	if err != nil {
+		t.Fatalf("error writing checksum: %v", err)
+	}
+
+	innerMap2Expected := bytes.NewBuffer([]byte{
+		TypeMapStringKey, 'o', 'u', 't', 'e', 'r', 'K', 'e', 'y', '2', 0xFF, 0x01, byte(innerMap2ContentExpected.Len()),
+	})
+	innerMap2Expected.Write(innerMap2ContentExpected.Bytes())
+	err = writeChecksum(innerMap2Expected)
+	if err != nil {
+		t.Fatalf("error writing checksum: %v", err)
+	}
+
+	outerExpected := bytes.NewBuffer([]byte{
+		TypeMapStringKey, 'n', 'e', 's', 't', 'e', 'd', 0xFF, 0x01,
+	})
+	outerExpected.WriteByte(byte(innerMap1Expected.Len() + innerMap2Expected.Len()))
+	outerExpected.Write(innerMap1Expected.Bytes())
+	outerExpected.Write(innerMap2Expected.Bytes())
+	err = writeChecksum(outerExpected)
+	if err != nil {
+		t.Fatalf("error writing checksum: %v", err)
+	}
+
+	buf := bytes.NewBuffer(nil)
+	err = encodeArgument(buf, value, "nested")
+	if err != nil {
+		t.Fatalf("error encoding argument: %v", err)
+	}
+
+	if !bytes.Equal(buf.Bytes(), outerExpected.Bytes()) {
+		t.Fatalf(`
+diff
+%s
+		`, compareBytes(outerExpected.Bytes(), buf.Bytes()))
+	}
+}
+
+func TestEncodeMap(t *testing.T) {
+	tests := []struct {
+		name         string
+		value        map[any]any
+		outerResult  []byte
+		innerResults [][]byte
+	}{
+		{"single", map[any]any{byte(0xDE): "moin"}, []byte{
+			TypeMap, 's', 'i', 'n', 'g', 'l', 'e', 0xFF, 0x01,
+		}, [][]byte{
+			{
+				TypeUInt8, 0xFF, 0x01, 0x01, 0xDE,
+			},
+			{
+				TypeString, 0xFF, 0x01, 0x04, 'm', 'o', 'i', 'n',
+			},
+		}},
+		{"multiple", map[any]any{byte(0xDE): "moin", string("dikka"): byte(0x68)}, []byte{
+			TypeMap, 'm', 'u', 'l', 't', 'i', 'p', 'l', 'e', 0xFF, 0x01,
+		}, [][]byte{
+			{
+				TypeUInt8, 0xFF, 0x01, 0x01, 0xDE,
+			},
+			{
+				TypeString, 0xFF, 0x01, 0x04, 'm', 'o', 'i', 'n',
+			},
+			{
+				TypeString, 0xFF, 0x01, 0x05, 'd', 'i', 'k', 'k', 'a',
+			},
+			{
+				TypeUInt8, 0xFF, 0x01, 0x01, 0x68,
+			},
+		}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			buf := bytes.NewBuffer(nil)
+			err := encodeArgument(buf, tt.value, tt.name)
+
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			innerBuf := bytes.NewBuffer(nil)
+			for _, innerResult := range tt.innerResults {
+				tmpBuf := bytes.NewBuffer(innerResult)
+				err = writeChecksum(tmpBuf)
+				if err != nil {
+					t.Fatalf("error writing checksum: %v", err)
+				}
+				innerBuf.Write(tmpBuf.Bytes())
+			}
+			innerBufSize := innerBuf.Len()
+
+			resultBuf := bytes.NewBuffer(tt.outerResult)
+			resultBuf.WriteByte(byte(innerBufSize))
+			resultBuf.Write(innerBuf.Bytes())
+
+			err = writeChecksum(resultBuf)
+			if err != nil {
+				t.Fatalf("error writing checksum: %v", err)
+			}
+
+			if !bytes.Equal(buf.Bytes(), resultBuf.Bytes()) {
+				t.Fatalf(`
+diff:
+%s
+				`, compareBytes(resultBuf.Bytes(), buf.Bytes()))
+			}
+		})
+	}
+}
+
+func TestEncodeNestedMap(t *testing.T) {
+	innerMap := map[any]any{
+		"innerKey": byte(0xDE),
+	}
+	outerMap := map[any]any{
+		"outerKey": innerMap,
+	}
+	_ = outerMap
+
+	innerMapContentExpectedKey := bytes.NewBuffer([]byte{
+		TypeString, 0xFF, 0x01, 0x08, 'i', 'n', 'n', 'e', 'r', 'K', 'e', 'y',
+	})
+	err := writeChecksum(innerMapContentExpectedKey)
+	if err != nil {
+		t.Fatalf("error writing checksum: %v", err)
+	}
+
+	innerMapContentExpectedValue := bytes.NewBuffer([]byte{
+		TypeUInt8, 0xFF, 0x01, 0x01, 0xDE,
+	})
+	err = writeChecksum(innerMapContentExpectedValue)
+	if err != nil {
+		t.Fatalf("error writing checksum: %v", err)
+	}
+
+	innerMapExpected := bytes.NewBuffer([]byte{
+		TypeMap, 0xFF, 0x01, byte(innerMapContentExpectedKey.Len() + innerMapContentExpectedValue.Len()),
+	})
+	innerMapExpected.Write(innerMapContentExpectedKey.Bytes())
+	innerMapExpected.Write(innerMapContentExpectedValue.Bytes())
+
+	outerMapContentExpectedKey := bytes.NewBuffer([]byte{
+		TypeString, 0xFF, 0x01, 0x08, 'o', 'u', 't', 'e', 'r', 'K', 'e', 'y',
+	})
+	err = writeChecksum(outerMapContentExpectedKey)
+	if err != nil {
+		t.Fatalf("error writing checksum: %v", err)
+	}
+
+	outerMapContentExpectedValue := bytes.NewBuffer(innerMapExpected.Bytes())
+	err = writeChecksum(outerMapContentExpectedValue)
+	if err != nil {
+		t.Fatalf("error writing checksum: %v", err)
+	}
+
+	outerMapExpected := bytes.NewBuffer([]byte{
+		TypeMap, 'n', 'e', 's', 't', 'e', 'd', 0xFF, 0x01, byte(outerMapContentExpectedKey.Len() + outerMapContentExpectedValue.Len()),
+	})
+	outerMapExpected.Write(outerMapContentExpectedKey.Bytes())
+	outerMapExpected.Write(outerMapContentExpectedValue.Bytes())
+	err = writeChecksum(outerMapExpected)
+	if err != nil {
+		t.Fatalf("error writing checksum: %v", err)
+	}
+
+	buf := bytes.NewBuffer(nil)
+	err = encodeArgument(buf, outerMap, "nested")
+	if err != nil {
+		t.Fatalf("error encoding argument: %v", err)
+	}
+
+	if !bytes.Equal(buf.Bytes(), outerMapExpected.Bytes()) {
+		t.Fatalf(`
+diff
+%s
+		`, compareBytes(outerMapExpected.Bytes(), buf.Bytes()))
+	}
+}

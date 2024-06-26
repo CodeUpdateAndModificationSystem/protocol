@@ -291,3 +291,87 @@ func TestDecodeSlice(t *testing.T) {
 
 	}
 }
+
+func TestDecodeMapStringKey(t *testing.T) {
+	tests := []struct {
+		name      string
+		dataRaw   any
+		expectErr bool
+	}{
+		{"primitives", map[string]any{"first": byte(0xDE), "second": "moin"}, false},
+		{"empty", map[string]any{}, false},
+		{"mixed", map[string]any{"first": byte(0xDE), "second": "moin"}, false},
+		{"nested", map[string]any{"first": map[string]any{"second": byte(0xDE)}}, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			data := bytes.NewBuffer(nil)
+			err := encodeArgument(data, tt.dataRaw, tt.name)
+			if err != nil {
+				t.Fatalf("error encoding argument: %v", err)
+			}
+
+			buffer := data.Bytes()
+			name, value, typ, err := decodeArgument(buffer)
+
+			if (err != nil) != tt.expectErr {
+				t.Fatalf("expected error: %v, got: %v", tt.expectErr, err)
+			}
+
+			if name != tt.name {
+				t.Fatalf("expected name: %v, got: %v", tt.name, name)
+			}
+
+			if typ != TypeMapStringKey {
+				t.Fatalf("expected type: %v, got: %v", TypeToString[TypeMapStringKey], TypeToString[typ])
+			}
+
+			if !reflect.DeepEqual(value, tt.dataRaw) {
+				t.Fatalf("expected: %#v, got: %#v", tt.dataRaw, value)
+			}
+		})
+
+	}
+}
+
+func TestDecodeMap(t *testing.T) {
+	tests := []struct {
+		name    string
+		dataRaw any
+	}{
+		{"primitives", map[any]any{byte(0xDE): "moin", "dikka": byte(0xAA)}},
+		{"empty", map[any]any{}},
+		{"mixed", map[any]any{byte(0xDE): "moin", "dikka": byte(0xAA)}},
+		{"nested", map[any]any{byte(0xDE): map[any]any{"nested": byte(0xAA)}}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			data := bytes.NewBuffer(nil)
+			err := encodeArgument(data, tt.dataRaw, tt.name)
+			if err != nil {
+				t.Fatalf("error encoding argument: %v", err)
+			}
+
+			buffer := data.Bytes()
+			name, value, typ, err := decodeArgument(buffer)
+
+			if err != nil {
+				t.Fatalf("error decoding argument: %v", err)
+			}
+
+			if name != tt.name {
+				t.Fatalf("expected name: %v, got: %v", tt.name, name)
+			}
+
+			if typ != TypeMap {
+				t.Fatalf("expected type: %v, got: %v", TypeToString[TypeMap], TypeToString[typ])
+			}
+
+			if !reflect.DeepEqual(value, tt.dataRaw) {
+				t.Fatalf("expected: %#v, got: %#v", tt.dataRaw, value)
+			}
+		})
+	}
+}
