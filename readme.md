@@ -47,3 +47,67 @@ This protocol facilitates communication between a server and a client by encodin
 ... 
 | Overall Checksum (4 bytes) |
 ```
+
+## Documentation
+
+### Function Encoding
+
+The `EncodeFunctionCall` function is used to encode a function call with its name and arguments into a binary format suitable for transmission. 
+
+#### Parameters:
+- `name` (string): The name of the function to be called.
+- `options` (*options): Encoding options including version, subversion, and compression flag.
+- `args` (map[string]any): A map of arguments where the key is the argument name and the value is the argument value.
+
+#### Returns:
+- `[]byte`: The encoded function call as a byte slice.
+- `error`: An error object if encoding fails.
+
+#### Example:
+```go
+options := &options{
+    version: 1,
+    subversion: 0,
+    compression: false,
+}
+args := map[string]any{
+    "arg1": 42,
+    "arg2": "example",
+}
+encodedCall, err := EncodeFunctionCall("MyFunction", options, args)
+if err != nil {
+    log.Fatalf("Encoding failed: %v", err)
+}
+```
+
+### Function Decoding
+
+The `DecodeFunctionCall` function is used to decode a received binary message back into a function name and its arguments.
+
+#### Parameters:
+
+- `data` (\[\]byte): The binary data representing the encoded function call.
+- `options` (\*options): Decoding options including expected version and subversion.
+
+#### Returns:
+
+- `string`: The name of the decoded function.
+- `map[string]Argument`: A map of decoded arguments.
+- `error`: An error object if decoding fails.
+
+#### Example:
+
+```go
+options := &options{
+    version: 1,
+    subversion: 0,
+}
+functionName, args, err := DecodeFunctionCall(encodedData, options)
+if err != nil {
+    log.Fatalf("Decoding failed: %v", err)
+}
+fmt.Printf("Function: %s\n", functionName)
+for name, arg := range args {
+    fmt.Printf("Argument: %s, Value: %v, Type: %d\n", name, arg.Value, arg.Typ)
+}
+```
