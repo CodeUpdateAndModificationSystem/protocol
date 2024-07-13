@@ -168,7 +168,7 @@ func TestEncodeDecodeFunctionCall(t *testing.T) {
 			compress: false,
 			expected: decodeExpected{
 				name: "single primitive",
-				args: map[string]Argument{"int": {Name: "int", Value: 0xDE, Typ: TypeInt16}},
+				args: map[string]Argument{"int": {Name: "int", Value: 0xDE, Typ: TypeInt}},
 			},
 		},
 		{
@@ -178,7 +178,7 @@ func TestEncodeDecodeFunctionCall(t *testing.T) {
 			expected: decodeExpected{
 				name: "multiple",
 				args: map[string]Argument{
-					"int": {Name: "int", Value: 0xDE, Typ: TypeInt16},
+					"int": {Name: "int", Value: 0xDE, Typ: TypeInt},
 					"str": {Name: "str", Value: "moin", Typ: TypeString},
 				},
 			},
@@ -203,7 +203,7 @@ func TestEncodeDecodeFunctionCall(t *testing.T) {
 				name: "simple with compression",
 				args: map[string]Argument{
 					"string": {Name: "string", Value: "moin", Typ: TypeString},
-					"int":    {Name: "int", Value: 0xDE, Typ: TypeInt16},
+					"int":    {Name: "int", Value: 0xDE, Typ: TypeInt},
 				},
 			},
 		},
@@ -247,13 +247,6 @@ func TestEncodeDecodeFunctionCall(t *testing.T) {
 
 				if arg.Typ != expectedArg.Typ {
 					t.Fatalf("expected argument type %q, got %q", TypeToString[expectedArg.Typ], TypeToString[arg.Typ])
-				}
-
-				if reflect.TypeOf(expectedArg.Value).Kind() == reflect.Int {
-					expectedArg.Value, _ = shrinkInt(expectedArg.Value.(int))
-				}
-				if reflect.TypeOf(expectedArg.Value).Kind() == reflect.Uint {
-					expectedArg.Value, _ = shrinkUint(expectedArg.Value.(uint))
 				}
 
 				if !reflect.DeepEqual(arg.Value, expectedArg.Value) {

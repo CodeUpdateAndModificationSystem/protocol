@@ -57,6 +57,22 @@ func decodeArgument(data []byte) (name string, value any, typ byte, err error) {
 		}
 	} else {
 		switch typ {
+		case TypeInt:
+			var result int64
+			reader := bytes.NewReader(content)
+			err = binary.Read(reader, binary.BigEndian, &result)
+			if err != nil {
+				return
+			}
+			value = int(result)
+		case TypeUInt:
+			var result uint64
+			reader := bytes.NewReader(content)
+			err = binary.Read(reader, binary.BigEndian, &result)
+			if err != nil {
+				return
+			}
+			value = uint(result)
 		case TypeString:
 			value = string(content)
 		case TypeStruct:

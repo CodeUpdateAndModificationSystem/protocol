@@ -58,19 +58,75 @@ got:      %s
 	}
 }
 
-func TestEncodingShrinkingArgument(t *testing.T) {
+// func TestEncodingShrinkingArgument(t *testing.T) {
+// 	tests := []struct {
+// 		name   string
+// 		value  any
+// 		result []byte
+// 	}{
+// 		{"int8", math.MaxInt8, []byte{TypeInt8, 'i', 'n', 't', '8', 0xFF, 0x01, 0x01, 0x7F}},
+// 		{"int16", math.MaxInt16, []byte{TypeInt16, 'i', 'n', 't', '1', '6', 0xFF, 0x01, 0x02, 0x7F, 0xFF}},
+// 		{"int32", math.MaxInt32, []byte{TypeInt32, 'i', 'n', 't', '3', '2', 0xFF, 0x01, 0x04, 0x7F, 0xFF, 0xFF, 0xFF}},
+// 		{"int64", math.MaxInt64, []byte{TypeInt64, 'i', 'n', 't', '6', '4', 0xFF, 0x01, 0x08, 0x7F, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}},
+// 		{"uint8", uint(math.MaxUint8), []byte{TypeUInt8, 'u', 'i', 'n', 't', '8', 0xFF, 0x01, 0x01, 0xFF}},
+// 		{"uint16", uint(math.MaxUint16), []byte{TypeUInt16, 'u', 'i', 'n', 't', '1', '6', 0xFF, 0x01, 0x02, 0xFF, 0xFF}},
+// 		{"uint32", uint(math.MaxUint32), []byte{TypeUInt32, 'u', 'i', 'n', 't', '3', '2', 0xFF, 0x01, 0x04, 0xFF, 0xFF, 0xFF, 0xFF}},
+// 	}
+
+// 	for _, tt := range tests {
+// 		t.Run(tt.name, func(t *testing.T) {
+// 			buf := bytes.NewBuffer(nil)
+// 			err := encodeArgument(buf, tt.value, tt.name)
+
+// 			if err != nil {
+// 				t.Fatalf("unexpected error: %v", err)
+// 			}
+
+// 			resultBuf := bytes.NewBuffer(tt.result)
+// 			err = writeChecksum(resultBuf)
+// 			if err != nil {
+// 				t.Fatalf("error writing checksum: %v", err)
+// 			}
+
+// 			if !bytes.Equal(buf.Bytes(), resultBuf.Bytes()) {
+// 				t.Fatalf(`
+// expected:
+// %s
+// got:
+// %s
+// 				`, formatXXD(resultBuf.Bytes()), formatXXD(buf.Bytes()))
+// 			}
+// 		})
+// 	}
+// }
+
+func TestEncodeDynamicIntArgument(t *testing.T) {
 	tests := []struct {
 		name   string
 		value  any
 		result []byte
 	}{
-		{"int8", math.MaxInt8, []byte{TypeInt8, 'i', 'n', 't', '8', 0xFF, 0x01, 0x01, 0x7F}},
-		{"int16", math.MaxInt16, []byte{TypeInt16, 'i', 'n', 't', '1', '6', 0xFF, 0x01, 0x02, 0x7F, 0xFF}},
-		{"int32", math.MaxInt32, []byte{TypeInt32, 'i', 'n', 't', '3', '2', 0xFF, 0x01, 0x04, 0x7F, 0xFF, 0xFF, 0xFF}},
-		{"int64", math.MaxInt64, []byte{TypeInt64, 'i', 'n', 't', '6', '4', 0xFF, 0x01, 0x08, 0x7F, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}},
-		{"uint8", uint(math.MaxUint8), []byte{TypeUInt8, 'u', 'i', 'n', 't', '8', 0xFF, 0x01, 0x01, 0xFF}},
-		{"uint16", uint(math.MaxUint16), []byte{TypeUInt16, 'u', 'i', 'n', 't', '1', '6', 0xFF, 0x01, 0x02, 0xFF, 0xFF}},
-		{"uint32", uint(math.MaxUint32), []byte{TypeUInt32, 'u', 'i', 'n', 't', '3', '2', 0xFF, 0x01, 0x04, 0xFF, 0xFF, 0xFF, 0xFF}},
+		{"zero", 0, []byte{
+			TypeInt, 'z', 'e', 'r', 'o', 0xFF, 0x01, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		}},
+		{"positive", 69, []byte{
+			TypeInt, 'p', 'o', 's', 'i', 't', 'i', 'v', 'e', 0xFF, 0x01, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x45,
+		}},
+		{"negative", -69, []byte{
+			TypeInt, 'n', 'e', 'g', 'a', 't', 'i', 'v', 'e', 0xFF, 0x01, 0x08, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xBB,
+		}},
+		{"32max", math.MaxInt32, []byte{
+			TypeInt, '3', '2', 'm', 'a', 'x', 0xFF, 0x01, 0x08, 0x00, 0x00, 0x00, 0x00, 0x7F, 0xFF, 0xFF, 0xFF,
+		}},
+		{"32min", math.MinInt32, []byte{
+			TypeInt, '3', '2', 'm', 'i', 'n', 0xFF, 0x01, 0x08, 0xFF, 0xFF, 0xFF, 0xFF, 0x80, 0x00, 0x00, 0x00,
+		}},
+		{"64max", math.MaxInt64, []byte{
+			TypeInt, '6', '4', 'm', 'a', 'x', 0xFF, 0x01, 0x08, 0x7F, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+		}},
+		{"64min", math.MinInt64, []byte{
+			TypeInt, '6', '4', 'm', 'i', 'n', 0xFF, 0x01, 0x08, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		}},
 	}
 
 	for _, tt := range tests {

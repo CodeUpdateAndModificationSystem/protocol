@@ -11,13 +11,6 @@ import (
 func encodeArgument(writeBuf *bytes.Buffer, value any, name string) error {
 	buf := bytes.NewBuffer(nil)
 
-	if reflect.TypeOf(value).Kind() == reflect.Int {
-		value, _ = shrinkInt(value.(int))
-	}
-	if reflect.TypeOf(value).Kind() == reflect.Uint {
-		value, _ = shrinkUint(value.(uint))
-	}
-
 	typeTag, ok := AnyToTypeTag(value)
 	if !ok {
 		return &UnsupportedTypeError{Kind: reflect.TypeOf(value).Kind()}
@@ -43,6 +36,22 @@ func encodeArgument(writeBuf *bytes.Buffer, value any, name string) error {
 		content = contentBuffer.Bytes()
 	} else {
 		switch typeTag {
+		case TypeInt:
+			contentBuffer := bytes.NewBuffer(nil)
+			as64 := int64(value.(int))
+			err = binary.Write(contentBuffer, binary.BigEndian, as64)
+			if err != nil {
+				return err
+			}
+			content = contentBuffer.Bytes()
+		case TypeUInt:
+			contentBuffer := bytes.NewBuffer(nil)
+			as64 := uint64(value.(uint))
+			err = binary.Write(contentBuffer, binary.BigEndian, as64)
+			if err != nil {
+				return err
+			}
+			content = contentBuffer.Bytes()
 		case TypeString:
 			content = []byte(value.(string))
 		case TypeStruct:

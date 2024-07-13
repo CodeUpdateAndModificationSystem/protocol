@@ -59,6 +59,9 @@ const (
 	TypeComplex64
 	TypeComplex128
 
+	TypeInt
+	TypeUInt
+
 	TypeString
 
 	TypeStruct
@@ -81,6 +84,8 @@ var simpleTypeTagMappings = map[reflect.Kind]byte{
 	reflect.Float64:    TypeFloat64,
 	reflect.Complex64:  TypeComplex64,
 	reflect.Complex128: TypeComplex128,
+	reflect.Uint:       TypeUInt,
+	reflect.Int:        TypeInt,
 	reflect.String:     TypeString,
 	reflect.Struct:     TypeStruct,
 	reflect.Slice:      TypeSlice,
@@ -118,6 +123,8 @@ var TypeToString = map[byte]string{
 	TypeFloat64:      "float64",
 	TypeComplex64:    "complex64",
 	TypeComplex128:   "complex128",
+	TypeInt:          "int",
+	TypeUInt:         "uint",
 	TypeString:       "string",
 	TypeStruct:       "struct",
 	TypeSlice:        "slice",
